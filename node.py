@@ -30,30 +30,44 @@ class Node:
         
         self.sock.bind((host, port))
         self.sock.listen()
+
+    def __handle_peer(self, conn, addr):
+        print(addr)
         
     def _start_server(self):
         # Connect to the others (note: potentially dangerous)
-        valid_addresses = [ f'sp20-cs425-g36-0{x}.cs.illinois.edu' for x in range(num_nodes_in_system) ]
+        valid_addresses = [ f'sp20-cs425-g36-0{x}.cs.illinois.edu' for x in range(1, num_nodes_in_system+1) ]
+        valid_addresses = [ x for x in valid_addresses if x != socket.gethostname() ]
         
         for addr in valid_addresses:
             threading.Thread(target=self.__connect_to_node, args=((addr), )).start()
 
-        while len(self.out_socks) < num_nodes_in_system:
-            conn, address = s.accept()
-            peer_thread = threading.Thread(target=__handle_peer)
+
+        print(valid_addresses)
+                
+        while len(self.out_socks) < len(valid_addresses):
+            conn, address = self.sock.accept()
+            peer_thread = threading.Thread(target=self.__handle_peer, args=(conn, address))
             self.in_conns.append(peer_thread)
             peer_thread.start()
 
 
         # Wait for a few seconds
-        for conn in self.out_cons:
+        for conn in self.out_socks:
             print(conn)
         
         # Start listening on stdin
         pass
         
     def __connect_to_node(self, addr):
-        sock = socket.create_connection((addr, host))
+        connected = False
+        
+        while not connected:
+            try:
+                sock = socket.create_connection((addr, port))
+                connected = True
+            except Exception:
+                connected = False
 
         self.lock.acquire()
         self.out_socks.append(sock)
@@ -64,3 +78,6 @@ class Node:
         # Loop until connected to enough of the
         pass
         
+
+if __name__ == '__main__':
+    node = Node()
