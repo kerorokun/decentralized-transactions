@@ -17,7 +17,6 @@ class Node:
         self.in_conns  = []
         self.out_socks = []
 
-        
         self.lock = threading.Lock()
         self._make_server()
         self._start_server()
@@ -33,28 +32,34 @@ class Node:
 
     def __handle_peer(self, conn, addr):
         print(addr)
+
+    def __listen_for_connections(self):
+        while True:
+            conn, address = self.sock.accept()
+            peer_thread = threading.Thread(target=self.__handle_peer, args=(conn, address))
+            self.in_conns.append(peer_thread)
+            peer_thread.start()
         
     def _start_server(self):
         # Connect to the others (note: potentially dangerous)
         valid_addresses = [ f'sp20-cs425-g36-0{x}.cs.illinois.edu' for x in range(1, num_nodes_in_system+1) ]
         valid_addresses = [ x for x in valid_addresses if x != socket.gethostname() ]
+        print(valid_addresses)
         
         for addr in valid_addresses:
             threading.Thread(target=self.__connect_to_node, args=((addr), )).start()
 
+        conn_thread = threading.Thread(target=self.__listen_for_connections, daemon=True)
+        conn_thread.start()
 
-        print(valid_addresses)
-                
         while len(self.out_socks) < len(valid_addresses):
-            conn, address = self.sock.accept()
-            peer_thread = threading.Thread(target=self.__handle_peer, args=(conn, address))
-            self.in_conns.append(peer_thread)
-            peer_thread.start()
-
+            pass
 
         # Wait for a few seconds
         for conn in self.out_socks:
             print(conn)
+
+        print("Connected!")
         
         # Start listening on stdin
         pass
