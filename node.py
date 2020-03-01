@@ -50,7 +50,13 @@ class Node:
             peer_thread.start()
         
     def _start_server(self):
-        self._connect_to_others()
+        # Connect to the others (note: hardcoded so potentially dangerous)
+        valid_addresses = [ f'sp20-cs425-g36-0{x}.cs.illinois.edu' for x in range(1, num_nodes_in_system+1) ]
+        valid_addresses = [ x for x in valid_addresses if x != socket.gethostname() ]
+        print(valid_addresses)
+        
+        for addr in valid_addresses:
+            threading.Thread(target=self.__connect_to_node, args=((addr), )).start()
         
         conn_thread = threading.Thread(target=self.__listen_for_connections, daemon=True)
         conn_thread.start()
@@ -85,15 +91,6 @@ class Node:
         self.lock.acquire()
         self.out_socks.append(sock)
         self.lock.release()
-        
-    def _connect_to_others(self):
-        # Connect to the others (note: hardcoded so potentially dangerous)
-        valid_addresses = [ f'sp20-cs425-g36-0{x}.cs.illinois.edu' for x in range(1, num_nodes_in_system+1) ]
-        valid_addresses = [ x for x in valid_addresses if x != socket.gethostname() ]
-        print(valid_addresses)
-        
-        for addr in valid_addresses:
-            threading.Thread(target=self.__connect_to_node, args=((addr), )).start()
         
 
 if __name__ == '__main__':
