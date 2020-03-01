@@ -6,6 +6,7 @@ from collections import defaultdict
 import threading
 import socket
 import sys
+import time
 
 num_nodes_in_system = int(sys.argv[1])
 port = int(sys.argv[2])
@@ -33,6 +34,14 @@ class Node:
     def __handle_peer(self, conn, addr):
         print(addr)
 
+        while True:
+            data = conn.recv(1024)
+            if not data:
+                break
+
+            msg = data.decode('utf-8')
+            print(msg)
+
     def __listen_for_connections(self):
         while True:
             conn, address = self.sock.accept()
@@ -41,28 +50,27 @@ class Node:
             peer_thread.start()
         
     def _start_server(self):
-        # Connect to the others (note: potentially dangerous)
-        valid_addresses = [ f'sp20-cs425-g36-0{x}.cs.illinois.edu' for x in range(1, num_nodes_in_system+1) ]
-        valid_addresses = [ x for x in valid_addresses if x != socket.gethostname() ]
-        print(valid_addresses)
+        self._connect_to_others()
         
-        for addr in valid_addresses:
-            threading.Thread(target=self.__connect_to_node, args=((addr), )).start()
-
         conn_thread = threading.Thread(target=self.__listen_for_connections, daemon=True)
         conn_thread.start()
 
+        # Connect to all other nodes
         while len(self.out_socks) < len(valid_addresses):
             pass
 
         # Wait for a few seconds
-        for conn in self.out_socks:
-            print(conn)
+        time.sleep(2)
 
-        print("Connected!")
-        
         # Start listening on stdin
-        pass
+        while True:
+            for line in sys.stdin:
+                self.multicast(line)
+
+    def multicast(self, msg):
+        # Naive implementation for now
+        for out in self.out_socks:
+            out.sendall(str.encode(msg))
         
     def __connect_to_node(self, addr):
         connected = False
@@ -79,9 +87,13 @@ class Node:
         self.lock.release()
         
     def _connect_to_others(self):
-        # Problem: the other nodes won't have started just yet
-        # Loop until connected to enough of the
-        pass
+        # Connect to the others (note: hardcoded so potentially dangerous)
+        valid_addresses = [ f'sp20-cs425-g36-0{x}.cs.illinois.edu' for x in range(1, num_nodes_in_system+1) ]
+        valid_addresses = [ x for x in valid_addresses if x != socket.gethostname() ]
+        print(valid_addresses)
+        
+        for addr in valid_addresses:
+            threading.Thread(target=self.__connect_to_node, args=((addr), )).start()
         
 
 if __name__ == '__main__':
