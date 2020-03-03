@@ -57,7 +57,6 @@ class Node:
         while True:
             msg = self.msg_queue.get()
 
-            print(msg)
             msg = msg.lower()
 
             if "deposit" in msg:
@@ -71,6 +70,7 @@ class Node:
 
     def deposit(self, account, amt):
         self.acc_lock.acquire()
+        print(f"Depositing {amt} into {self.accounts[account]}")
         if self.accounts[account] < 0:
             self.accounts[account] = 0
         self.accounts[account] += amt
@@ -102,7 +102,15 @@ class Node:
         # multicast to everyone
         self.num_response = 0
         id = uuid.uuid4()
+
+        # TODO: Maybe combine this with deliver
+        self.TO_lock.acquire()
+        self.isis_queue.append((self.sequence_num, msg, id, False))
+        self.sequence_num += 1
+        self.TO_lock.release()
+
         self.multicast(f"ISIS-TO-INIT {id} {msg}")
+
         
         # wait to hear back from everyone
         while self.num_response < len(self.in_conns):
@@ -116,13 +124,32 @@ class Node:
             final_time = max(final_time, v)
         self.proposed_lock.release()
         
+        self.TO_lock.acquire()
+        self.isis_queue.sort(key=lambda x: x[0])
+        for i, queued_msg in enumerate(self.isis_queue):
+            seq_time, content, msg_id, deliverable = queued_msg
+
+            if id == msg_id:
+                deliverable = True
+                self.isis_queue[i] = (seq_time, content, msg_id, True)
+
+            if not deliverable:
+                break
+
+            self.deliver(content)
+
+        # Need to remove sent messages from the queue
+        self.isis_queue = self.isis_queue[i:]
+        self.TO_lock.release()
+
+
         # tell everyone else
         self.multicast(f"ISIS-TO-FINAL {final_time} {id}")
 
 
     def deliver_TO(self, addr, msg):
         msg = msg.lower()
-        if "final" in msg:
+        if "isis-to-final" in msg:
             #TODO: Re-arrange queue and then send
             _, final_time, id = msg.split()
 
@@ -140,6 +167,7 @@ class Node:
 
                 self.deliver(content)
                 
+            self.isis_queue = self.isis_queue[i:]                
             self.TO_lock.release()
 
                 
