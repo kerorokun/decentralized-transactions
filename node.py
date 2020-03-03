@@ -58,12 +58,13 @@ class Node:
             msg = self.msg_queue.get()
 
             print(msg)
+            msg = msg.lower()
 
-            if "DEPOSIT" in msg:
+            if "deposit" in msg:
                 # handle deposit
                 params = msg.split()
                 self.deposit(params[1], float(params[2]))
-            else:
+            elif "transfer" in msg:
                 # handle transfer
                 params = msg.split()
                 self.withdraw(params[1], params[3], float(params[4]))
