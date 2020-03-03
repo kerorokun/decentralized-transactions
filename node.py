@@ -1,7 +1,3 @@
-# 1. Create a connection to the other nodes
-# 2. Start listening on the stdin for input
-# 3. Broadcast the messages according (according to ISIS algorithm)
-# 4. Handle transaction messages accordingly
 from collections import defaultdict
 from queue import Queue
 import threading
@@ -16,16 +12,39 @@ class Node:
 
     def __init__(self):
         self.accounts  = defaultdict(lambda: -1)
+
+        self.isis_queue = []
+        
+        self.proposed_times = defaultdict(lambda: -1)
+        self.num_response = 0
+        
         self.in_conns  = []
         self.out_socks = []
+        self.out_socks_map = {}
+        self.sequence_num = 0
 
         self.msg_queue = Queue()
 
-        self.lock = threading.Lock()
-        self.acc_lock = threading.Lock()
+        self.lock          = threading.Lock()
+        self.acc_lock      = threading.Lock()
+        self.seq_lock      = threading.Lock()
+        self.proposed_lock = threading.Lock()
         
         self._make_server()
         self._start_server()
+        self._main_loop()
+
+    def _main_loop(self):
+        transaction_thread = threading.Thread(target=self.handle_transactions, daemon=True)
+        transaction_thread.start()
+
+        status_thread = threading.Thread(target=self.output_accounts, daemon=True)
+        status_thread.start()
+        
+        # Start listening on stdin
+        while True:
+            for line in sys.stdin:
+                self.multicast_TO(line)
 
     ##################################
     ## Transaction handling
@@ -72,6 +91,44 @@ class Node:
     ##################################
     ## Multicasting
     #################################
+    def multicast_TO(self, msg):
+        # multicast to everyone
+        self.num_response = 0
+        multicast("ISIS-TO-INIT")
+        
+        # wait to hear back from everyone
+        while self.num_response < len(self.in_conns):
+            pass
+        
+        # decide on proposed
+        self.proposed_lock.acquire()
+        final_time = -1
+
+        for k, v in proposed_times.items():
+            final_time = max(final_time, v)
+        self.proposed_lock.release()
+        
+        # tell everyone else
+        multicast(f"ISIS-TO-FINAL {final_time}")
+
+
+    def deliver_TO(self, addr, msg):
+        msg = msg.tolower()
+        if "final" in msg:
+            #TODO: Re-arrange queue and then send
+            print(msg.split()[1])
+            pass
+        elif "init" in msg:
+            self.seq_lock.acquire()
+            self.out_socks_map[addr].sendall(str.encode(f"ISIS-TO-PROPOSE {self.sequence_num}"))
+            self.sequence_num += 1
+            self.seq_lock.release()
+        elif "propose" in msg:
+            self.proposed_lock.acquire()
+            self.proposed_times[addr] = int(msg.split()[1])
+            self.num_response += 1
+            self.proposed_lock.release()
+    
     def multicast(self, msg):
         # Naive implementation for now
         self.deliver(msg)
@@ -90,7 +147,11 @@ class Node:
                 break
 
             msg = data.decode('utf-8')
-            self.deliver(msg)
+
+            if "ISIS-TO" in msg:
+                self.deliver_TO(addr, msg)
+            else:
+                self.deliver(msg)
     
     #####################################
     ## Server connection
@@ -110,6 +171,21 @@ class Node:
             peer_thread = threading.Thread(target=self.__handle_peer, args=(conn, address))
             self.in_conns.append(peer_thread)
             peer_thread.start()
+            
+    def __connect_to_node(self, addr):
+        connected = False
+        
+        while not connected:
+            try:
+                sock = socket.create_connection((addr, port))
+                connected = True
+            except Exception:
+                connected = False
+
+        self.lock.acquire()
+        self.out_socks.append(sock)
+        self.out_socks_map[addr] = sock
+        self.lock.release()
         
     def _start_server(self):
         # Connect to the others (note: hardcoded so potentially dangerous)
@@ -128,33 +204,8 @@ class Node:
 
         # Wait for a few seconds
         time.sleep(2)
-        
-        transaction_thread = threading.Thread(target=self.handle_transactions, daemon=True)
-        transaction_thread.start()
-
-        status_thread = threading.Thread(target=self.output_accounts, daemon=True)
-        status_thread.start()
-        
-        # Start listening on stdin
-        while True:
-            for line in sys.stdin:
-                self.multicast(line)
-
 
         
-    def __connect_to_node(self, addr):
-        connected = False
-        
-        while not connected:
-            try:
-                sock = socket.create_connection((addr, port))
-                connected = True
-            except Exception:
-                connected = False
-
-        self.lock.acquire()
-        self.out_socks.append(sock)
-        self.lock.release()
         
 
 if __name__ == '__main__':
