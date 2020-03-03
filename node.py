@@ -126,7 +126,7 @@ class Node:
         self.TO_lock.acquire()
         self.isis_queue.sort(key=lambda x: x[0])
 
-        deliver_i = 0
+        i = 0
         for i, queued_msg in enumerate(self.isis_queue):
             seq_time, content, msg_id, deliverable = queued_msg
 
@@ -156,12 +156,12 @@ class Node:
         msg = msg.lower()
         if "isis-to-final" in msg:
 
-            print(f"Final msg is {msg}")
-            
             _, final_time, id = msg.split()
 
             self.TO_lock.acquire()
             self.isis_queue.sort(key=lambda x: x[0])
+
+            i = 0
             for i, queued_msg in enumerate(self.isis_queue):
                 seq_time, content, msg_id, deliverable = queued_msg
 
@@ -187,7 +187,6 @@ class Node:
             split = msg.split()
             id = split[1]
             content = " ".join(split[2:])
-            print(content)
 
             self.TO_lock.acquire()
             self.isis_queue.append((self.sequence_num, content, id, False))
@@ -284,7 +283,7 @@ class Node:
         # Connect to the others (note: hardcoded so potentially dangerous)
         valid_addresses = [ f'sp20-cs425-g36-0{x}.cs.illinois.edu' for x in range(1, num_nodes_in_system+1) ]
         valid_addresses = [ x for x in valid_addresses if x != socket.gethostname() ]
-        print(valid_addresses)
+        print(f"Connecting to {valid_addresses}")
         for addr in valid_addresses:
             threading.Thread(target=self.__connect_to_node, args=((addr), )).start()
         
