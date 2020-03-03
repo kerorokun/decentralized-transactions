@@ -49,21 +49,25 @@ class Node:
             self.accounts[account] = 0
         self.accounts[account] += amt
         self.acc_lock.release()
-
+        
     def withdraw(self, sender, recipient, amt):
         self.acc_lock.acquire()
         if self.accounts[sender] >= amt:
             self.accounts[sender] -= amt
+
+            if self.accounts[recipient] < 0:
+                self.accounts[recipient] = 0
             self.accounts[recipient] += amt
         self.acc_lock.release()
             
     def output_accounts(self):
-        self.acc_lock.acquire()
-        balances = " ".join([ f"{acc}:{amt}" for acc, amt in self.accounts.iteritems() if amt > 0 ])
-        self.acc_lock.release()
+        while True:
+            self.acc_lock.acquire()
+            balances = " ".join([ f"{acc}:{amt}" for acc, amt in self.accounts.items() if amt > 0 ])
+            self.acc_lock.release()
         
-        print(f"BALANCES {balances}")
-        time.sleep(5)
+            print(f"BALANCES {balances}")
+            time.sleep(5)
             
     ##################################
     ## Multicasting
@@ -122,11 +126,19 @@ class Node:
 
         # Wait for a few seconds
         time.sleep(2)
+        
+        transaction_thread = threading.Thread(target=self.handle_transactions, daemon=True)
+        transaction_thread.start()
 
+        status_thread = threading.Thread(target=self.output_accounts, daemon=True)
+        status_thread.start()
+        
         # Start listening on stdin
         while True:
             for line in sys.stdin:
                 self.multicast(line)
+
+
         
     def __connect_to_node(self, addr):
         connected = False
