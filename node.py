@@ -126,11 +126,11 @@ class Node:
             self.TO_lock.acquire()
             self.isis_queue.sort(key=lambda x: x[0])
             for i, queued_msg in enumerate(self.isis_queue):
-                _, content, msg_id, deliverable = queued_msg
+                seq_time, content, msg_id, deliverable = queued_msg
 
                 if id == msg_id:
                     deliverable = True
-                    self.isis_queue[i][3] = True
+                    self.isis_queue[i] = (seq_time, content, msg_id, True)
 
                 if not deliverable:
                     break
