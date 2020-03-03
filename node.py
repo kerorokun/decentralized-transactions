@@ -38,8 +38,8 @@ class Node:
         transaction_thread = threading.Thread(target=self.handle_transactions, daemon=True)
         transaction_thread.start()
 
-        status_thread = threading.Thread(target=self.output_accounts, daemon=True)
-        status_thread.start()
+        #status_thread = threading.Thread(target=self.output_accounts, daemon=True)
+        #status_thread.start()
         
         # Start listening on stdin
         while True:
@@ -94,7 +94,7 @@ class Node:
     def multicast_TO(self, msg):
         # multicast to everyone
         self.num_response = 0
-        multicast("ISIS-TO-INIT")
+        self.multicast("ISIS-TO-INIT")
         
         # wait to hear back from everyone
         while self.num_response < len(self.in_conns):
@@ -109,11 +109,11 @@ class Node:
         self.proposed_lock.release()
         
         # tell everyone else
-        multicast(f"ISIS-TO-FINAL {final_time}")
+        self.multicast(f"ISIS-TO-FINAL {final_time}")
 
 
     def deliver_TO(self, addr, msg):
-        msg = msg.tolower()
+        msg = msg.lower()
         if "final" in msg:
             #TODO: Re-arrange queue and then send
             print(msg.split()[1])
@@ -131,7 +131,8 @@ class Node:
     
     def multicast(self, msg):
         # Naive implementation for now
-        self.deliver(msg)
+        if not "ISIS-TO" in msg:
+            self.deliver(msg)
         
         for out in self.out_socks:
             out.sendall(str.encode(msg))
@@ -149,7 +150,7 @@ class Node:
             msg = data.decode('utf-8')
 
             if "ISIS-TO" in msg:
-                self.deliver_TO(addr, msg)
+                self.deliver_TO(addr[0], msg)
             else:
                 self.deliver(msg)
     
@@ -174,6 +175,7 @@ class Node:
             
     def __connect_to_node(self, addr):
         connected = False
+        addr = socket.gethostbyname(addr)
         
         while not connected:
             try:
