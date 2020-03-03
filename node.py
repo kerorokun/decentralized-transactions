@@ -3,6 +3,7 @@
 # 3. Broadcast the messages according (according to ISIS algorithm)
 # 4. Handle transaction messages accordingly
 from collections import defaultdict
+from queue import Queue
 import threading
 import socket
 import sys
@@ -14,14 +15,80 @@ port = int(sys.argv[2])
 class Node:
 
     def __init__(self):
-        self.accounts  = defaultdict(int)
+        self.accounts  = defaultdict(lambda: -1)
         self.in_conns  = []
         self.out_socks = []
 
+        self.msg_queue = Queue()
+
         self.lock = threading.Lock()
+        self.acc_lock = threading.Lock()
+        
         self._make_server()
         self._start_server()
 
+    ##################################
+    ## Transaction handling
+    ##################################
+    def handle_transactions(self):
+        while True:
+            msg = self.msg_queue.get()
+
+            if "DEPOSIT" in msg:
+                # handle deposit
+                params = msg.split()
+                self.deposit(params[1], float(params[2]))
+            else:
+                # handle transfer
+                params = msg.split()
+                self.withdraw(params[1], params[3], float(params[4]))
+
+    def deposit(self, account, amt):
+        self.acc_lock.acquire()
+        if self.accounts[account] < 0:
+            self.accounts[account] = 0
+        self.accounts[account] += amt
+        self.acc_lock.release()
+
+    def withdraw(self, sender, recipient, amt):
+        self.acc_lock.acquire()
+        if self.accounts[sender] >= amt:
+            self.accounts[sender] -= amt
+            self.accounts[recipient] += amt
+        self.acc_lock.release()
+            
+    def output_accounts(self):
+        self.acc_lock.acquire()
+        balances = " ".join([ f"{acc}:{amt}" for acc, amt in self.accounts.iteritems() if amt > 0 ])
+        self.acc_lock.release()
+        
+        print(f"BALANCES {balances}")
+        time.sleep(5)
+            
+    ##################################
+    ## Multicasting
+    #################################
+    def multicast(self, msg):
+        # Naive implementation for now
+        for out in self.out_socks:
+            out.sendall(str.encode(msg))
+
+    def deliver(self, msg):
+        self.msg_queue.put(msg)
+
+    def __handle_peer(self, conn, addr):
+        # Naive implementation for now
+        while True:
+            data = conn.recv(1024)
+            if not data:
+                break
+
+            msg = data.decode('utf-8')
+            self.deliver(msg)
+    
+    #####################################
+    ## Server connection
+    #####################################
     def _make_server(self):
         # Create server and start listening
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -30,17 +97,6 @@ class Node:
         
         self.sock.bind((host, port))
         self.sock.listen()
-
-    def __handle_peer(self, conn, addr):
-        print(addr)
-
-        while True:
-            data = conn.recv(1024)
-            if not data:
-                break
-
-            msg = data.decode('utf-8')
-            print(msg)
 
     def __listen_for_connections(self):
         while True:
@@ -54,7 +110,6 @@ class Node:
         valid_addresses = [ f'sp20-cs425-g36-0{x}.cs.illinois.edu' for x in range(1, num_nodes_in_system+1) ]
         valid_addresses = [ x for x in valid_addresses if x != socket.gethostname() ]
         print(valid_addresses)
-        
         for addr in valid_addresses:
             threading.Thread(target=self.__connect_to_node, args=((addr), )).start()
         
@@ -72,11 +127,6 @@ class Node:
         while True:
             for line in sys.stdin:
                 self.multicast(line)
-
-    def multicast(self, msg):
-        # Naive implementation for now
-        for out in self.out_socks:
-            out.sendall(str.encode(msg))
         
     def __connect_to_node(self, addr):
         connected = False
