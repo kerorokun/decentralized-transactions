@@ -195,7 +195,7 @@ class Node:
             
             self.seq_lock.acquire()
             self.unicast(self.out_socks_map[addr],
-                         str.encode(f"ISIS-TO-PROPOSE {self.sequence_num}"))
+                         f"ISIS-TO-PROPOSE {self.sequence_num}")
             #self.out_socks_map[addr].sendall(str.encode(f"ISIS-TO-PROPOSE {self.sequence_num}"))
             self.sequence_num += 1
             self.seq_lock.release()
@@ -230,12 +230,12 @@ class Node:
                 #if not data:
                 #    break
                 while len(data) < data_size:
-                    subdata = channel.recv(data_size - len(data))
+                    subdata = conn.recv(data_size - len(data))
                     if not subdata:
-                        return None
-                    data += subdata
+                        break
+                    data += subdata.decode('utf-8')
 
-                msg = data.decode('utf-8')
+                msg = data
 
                 if "ISIS-TO" in msg:
                     self.deliver_TO(addr[0], msg)
