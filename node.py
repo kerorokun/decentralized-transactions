@@ -155,7 +155,9 @@ class Node:
     def deliver_TO(self, addr, msg):
         msg = msg.lower()
         if "isis-to-final" in msg:
-            #TODO: Re-arrange queue and then send
+
+            print(f"Final msg is {msg}")
+            
             _, final_time, id = msg.split()
 
             self.TO_lock.acquire()
