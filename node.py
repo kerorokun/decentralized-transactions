@@ -70,7 +70,6 @@ class Node:
 
     def deposit(self, account, amt):
         self.acc_lock.acquire()
-        print(f"Depositing {amt} into {self.accounts[account]}")
         if self.accounts[account] < 0:
             self.accounts[account] = 0
         self.accounts[account] += amt
@@ -126,6 +125,8 @@ class Node:
         
         self.TO_lock.acquire()
         self.isis_queue.sort(key=lambda x: x[0])
+
+        deliver_i = 0
         for i, queued_msg in enumerate(self.isis_queue):
             seq_time, content, msg_id, deliverable = queued_msg
 
@@ -139,7 +140,11 @@ class Node:
             self.deliver(content)
 
         # Need to remove sent messages from the queue
-        self.isis_queue = self.isis_queue[i:]
+        if i + 1 >= len(self.isis_queue):
+            self.isis_queue = []
+        else:
+            self.isis_queue = self.isis_queue[i+1:]
+        
         self.TO_lock.release()
 
 
@@ -167,7 +172,10 @@ class Node:
 
                 self.deliver(content)
                 
-            self.isis_queue = self.isis_queue[i:]                
+            if i + 1 >= len(self.isis_queue):
+                self.isis_queue = []
+            else:
+                self.isis_queue = self.isis_queue[i+1:]
             self.TO_lock.release()
 
                 
