@@ -74,6 +74,8 @@ class Node:
     #################################
     def multicast(self, msg):
         # Naive implementation for now
+        self.deliver(msg)
+        
         for out in self.out_socks:
             out.sendall(str.encode(msg))
 
