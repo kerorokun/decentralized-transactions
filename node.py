@@ -4,6 +4,9 @@ import threading
 import socket
 import sys
 import time
+import heapq
+import uuid
+
 
 num_nodes_in_system = int(sys.argv[1])
 port = int(sys.argv[2])
@@ -29,6 +32,7 @@ class Node:
         self.acc_lock      = threading.Lock()
         self.seq_lock      = threading.Lock()
         self.proposed_lock = threading.Lock()
+        self.TO_lock       = threading.Lock()
         
         self._make_server()
         self._start_server()
@@ -94,7 +98,8 @@ class Node:
     def multicast_TO(self, msg):
         # multicast to everyone
         self.num_response = 0
-        self.multicast("ISIS-TO-INIT")
+        id = uuid.uuid4()
+        self.multicast(f"ISIS-TO-INIT {msg} {id}")
         
         # wait to hear back from everyone
         while self.num_response < len(self.in_conns):
@@ -104,21 +109,46 @@ class Node:
         self.proposed_lock.acquire()
         final_time = -1
 
-        for k, v in proposed_times.items():
+        for k, v in self.proposed_times.items():
             final_time = max(final_time, v)
         self.proposed_lock.release()
         
         # tell everyone else
-        self.multicast(f"ISIS-TO-FINAL {final_time}")
+        self.multicast(f"ISIS-TO-FINAL {final_time} {id}")
 
 
     def deliver_TO(self, addr, msg):
         msg = msg.lower()
         if "final" in msg:
             #TODO: Re-arrange queue and then send
-            print(msg.split()[1])
-            pass
+            _, final_time, id = msg.split()
+
+            self.TO_lock.acquire()
+            self.isis_queue.sort(key=lambda x: x[0])
+            for i, queued_msg in enumerate(self.isis_queue):
+                _, content, msg_id, deliverable = queued_msg
+
+                if id == msg_id:
+                    deliverable = True
+                    self.isis_queue[i][3] = True
+
+                if not deliverable:
+                    break
+
+                self.deliver(content)
+                
+            self.TO_lock.release()
+
+                
+            
         elif "init" in msg:
+
+            _, content, id = msg.split()
+
+            self.TO_lock.acquire()
+            self.isis_queue.append((self.sequence_num, content, id, False))
+            self.TO_lock.release()
+            
             self.seq_lock.acquire()
             self.out_socks_map[addr].sendall(str.encode(f"ISIS-TO-PROPOSE {self.sequence_num}"))
             self.sequence_num += 1
