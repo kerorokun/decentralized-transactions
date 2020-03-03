@@ -194,7 +194,9 @@ class Node:
             self.TO_lock.release()
             
             self.seq_lock.acquire()
-            self.out_socks_map[addr].sendall(str.encode(f"ISIS-TO-PROPOSE {self.sequence_num}"))
+            self.unicast(self.out_socks_map[addr],
+                         str.encode(f"ISIS-TO-PROPOSE {self.sequence_num}"))
+            #self.out_socks_map[addr].sendall(str.encode(f"ISIS-TO-PROPOSE {self.sequence_num}"))
             self.sequence_num += 1
             self.seq_lock.release()
         elif "propose" in msg:
@@ -209,24 +211,38 @@ class Node:
             self.deliver(msg)
         
         for out in self.out_socks:
-            out.sendall(str.encode(msg))
+            self.unicast(out, msg) #out.sendall(str.encode(msg))
 
+    def unicast(self, sock, msg):
+        sock.send(struct.pack("i", len(msg)) + msg)
+            
     def deliver(self, msg):
         self.msg_queue.put(msg)
 
     def __handle_peer(self, conn, addr):
         # Naive implementation for now
         while True:
-            data = conn.recv(1024)
-            if not data:
-                break
+            try:
+                data_size = struct.unpack("i", conn.recv(struct.calcsize("i")))[0]
+                data = ""
+                #data = conn.recv(1024)
+                #if not data:
+                #    break
+                while len(data) < size:
+                    subdata = channel.recv(data_size - len(data))
+                    if not subdata:
+                        return None
+                    data += subdata
 
-            msg = data.decode('utf-8')
+                msg = data.decode('utf-8')
 
-            if "ISIS-TO" in msg:
-                self.deliver_TO(addr[0], msg)
-            else:
-                self.deliver(msg)
+                if "ISIS-TO" in msg:
+                    self.deliver_TO(addr[0], msg)
+                else:
+                    self.deliver(msg)
+            except OSError as e:
+                print(e)
+                return False
     
     #####################################
     ## Server connection
