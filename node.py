@@ -42,8 +42,8 @@ class Node:
         transaction_thread = threading.Thread(target=self.handle_transactions, daemon=True)
         transaction_thread.start()
 
-        #status_thread = threading.Thread(target=self.output_accounts, daemon=True)
-        #status_thread.start()
+        status_thread = threading.Thread(target=self.output_accounts, daemon=True)
+        status_thread.start()
         
         # Start listening on stdin
         while True:
@@ -56,6 +56,8 @@ class Node:
     def handle_transactions(self):
         while True:
             msg = self.msg_queue.get()
+
+            print(msg)
 
             if "DEPOSIT" in msg:
                 # handle deposit
@@ -99,7 +101,7 @@ class Node:
         # multicast to everyone
         self.num_response = 0
         id = uuid.uuid4()
-        self.multicast(f"ISIS-TO-INIT {msg} {id}")
+        self.multicast(f"ISIS-TO-INIT {id} {msg}")
         
         # wait to hear back from everyone
         while self.num_response < len(self.in_conns):
@@ -143,7 +145,10 @@ class Node:
             
         elif "init" in msg:
 
-            _, content, id = msg.split()
+            split = msg.split()
+            id = split[1]
+            content = " ".join(split[2:])
+            print(content)
 
             self.TO_lock.acquire()
             self.isis_queue.append((self.sequence_num, content, id, False))
