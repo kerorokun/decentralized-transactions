@@ -6,7 +6,7 @@ import sys
 import time
 import heapq
 import uuid
-
+import struct
 
 num_nodes_in_system = int(sys.argv[1])
 port = int(sys.argv[2])
@@ -214,6 +214,7 @@ class Node:
             self.unicast(out, msg) #out.sendall(str.encode(msg))
 
     def unicast(self, sock, msg):
+        msg = str.encode(msg)
         sock.send(struct.pack("i", len(msg)) + msg)
             
     def deliver(self, msg):
@@ -228,7 +229,7 @@ class Node:
                 #data = conn.recv(1024)
                 #if not data:
                 #    break
-                while len(data) < size:
+                while len(data) < data_size:
                     subdata = channel.recv(data_size - len(data))
                     if not subdata:
                         return None
