@@ -42,8 +42,8 @@ class Node:
         transaction_thread = threading.Thread(target=self.handle_transactions, daemon=True)
         transaction_thread.start()
 
-        status_thread = threading.Thread(target=self.output_accounts, daemon=True)
-        status_thread.start()
+        #status_thread = threading.Thread(target=self.output_accounts, daemon=True)
+        #status_thread.start()
         
         # Start listening on stdin
         while True:
@@ -58,6 +58,7 @@ class Node:
             msg = self.msg_queue.get()
 
             msg = msg.lower()
+            print(msg)
 
             if "deposit" in msg:
                 # handle deposit
