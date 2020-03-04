@@ -108,10 +108,10 @@ class Node:
         id = uuid.uuid4()
 
         # TODO: Maybe combine this with deliver
-        self.TO_lock.acquire()
-        self.isis_queue.append((self.sequence_num, msg, id, False))
-        self.sequence_num += 1
-        self.TO_lock.release()
+        # self.TO_lock.acquire()
+        # self.isis_queue.append((self.sequence_num, msg, id, False))
+        # self.sequence_num += 1
+        # self.TO_lock.release()
 
         self.multicast(f"ISIS-TO-INIT {id} {msg}")
 
@@ -128,29 +128,29 @@ class Node:
             final_time = max(final_time, v)
         self.proposed_lock.release()
         
-        self.TO_lock.acquire()
-        self.isis_queue.sort(key=lambda x: x[0])
+        # self.TO_lock.acquire()
+        # self.isis_queue.sort(key=lambda x: x[0])
 
-        i = 0
-        for i, queued_msg in enumerate(self.isis_queue):
-            seq_time, content, msg_id, deliverable = queued_msg
+        # i = 0
+        # for i, queued_msg in enumerate(self.isis_queue):
+        #     seq_time, content, msg_id, deliverable = queued_msg
 
-            if id == msg_id:
-                deliverable = True
-                self.isis_queue[i] = (seq_time, content, msg_id, True)
+        #     if id == msg_id:
+        #         deliverable = True
+        #         self.isis_queue[i] = (seq_time, content, msg_id, True)
 
-            if not deliverable:
-                break
+        #     if not deliverable:
+        #         break
 
-            self.deliver(content)
+        #     self.deliver(content)
 
-        # Need to remove sent messages from the queue
-        if i + 1 >= len(self.isis_queue):
-            self.isis_queue = []
-        else:
-            self.isis_queue = self.isis_queue[i+1:]
+        # # Need to remove sent messages from the queue
+        # if i + 1 >= len(self.isis_queue):
+        #     self.isis_queue = []
+        # else:
+        #     self.isis_queue = self.isis_queue[i+1:]
         
-        self.TO_lock.release()
+        # self.TO_lock.release()
 
 
         # tell everyone else
@@ -195,8 +195,10 @@ class Node:
             self.TO_lock.release()
 
             self.seq_lock.acquire()
-            self.r_unicast(self.out_socks_map[addr],
-                           f"ISIS-TO-PROPOSE {self.sequence_num}")
+
+            if addr != socket.gethostname():
+                self.r_unicast(self.out_socks_map[addr],
+                               f"ISIS-TO-PROPOSE {self.sequence_num}")
             #self.out_socks_map[addr].sendall(str.encode(f"ISIS-TO-PROPOSE {self.sequence_num}"))
             self.sequence_num += 1
             self.seq_lock.release()
@@ -212,10 +214,11 @@ class Node:
         self.r_multicast(msg)
 
     def r_multicast(self, msg):
-        if not "ISIS-TO" in msg:
-            self.deliver(msg)
+        #if not "ISIS-TO" in msg:
+        #    self.deliver(msg)
             
         msg = f"{uuid.uuid4()} {msg}"
+        self.r_deliver((socket.gethostname(), ""), msg)
         self.b_multicast(msg)
 
     def b_multicast(self, msg):
