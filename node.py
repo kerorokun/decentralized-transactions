@@ -195,8 +195,8 @@ class Node:
             self.TO_lock.release()
 
             self.seq_lock.acquire()
-            self.unicast(self.out_socks_map[addr],
-                         f"ISIS-TO-PROPOSE {self.sequence_num}")
+            self.r_unicast(self.out_socks_map[addr],
+                           f"ISIS-TO-PROPOSE {self.sequence_num}")
             #self.out_socks_map[addr].sendall(str.encode(f"ISIS-TO-PROPOSE {self.sequence_num}"))
             self.sequence_num += 1
             self.seq_lock.release()
@@ -212,16 +212,20 @@ class Node:
         self.r_multicast(msg)
 
     def r_multicast(self, msg):
-        msg = f"{uuid.uuid4()} msg"
+        if not "ISIS-TO" in msg:
+            self.deliver(msg)
+            
+        msg = f"{uuid.uuid4()} {msg}"
         self.b_multicast(msg)
 
     def b_multicast(self, msg):
-        if not "ISIS-TO" in msg:
-            self.deliver(msg)
-        
         for out in self.out_socks:
             self.unicast(out, msg) #out.sendall(str.encode(msg))
-    
+
+    def r_unicast(self, sock, msg):
+        msg = f"{uuid.uuid4()} {msg}"
+        self.unicast(sock, msg)
+            
     def unicast(self, sock, msg):
         msg = str.encode(msg)
         sock.send(struct.pack("i", len(msg)) + msg)
@@ -229,29 +233,29 @@ class Node:
     def deliver(self, msg):
         self.msg_queue.put(msg)
 
-    def b_deliver(self, msg):
-        self.r_deliver(msg)
+    def b_deliver(self, addr, msg):
+        self.r_deliver(addr, msg)
 
-    def r_deliver(self, msg):
+    def r_deliver(self, addr, msg):
         # Check to see if message has been recieved
+        msg_id, content = msg.split(" ", 1)
         new_message = False
+        
         self.msg_lock.acquire()
 
-        msg_id, msg = msg.split(" ", 1)
         if not self.received_messages[msg_id]: 
             new_message = True
             self.received_messages[msg_id] = True
         self.msg_lock.release()
 
-
         if not new_message:
             return
         
         # Handle the message
-        if "ISIS-TO" in msg:
-            self.deliver_TO(addr[0], msg)
+        if "ISIS-TO" in content:
+            self.deliver_TO(addr[0], content)
         else:
-            self.deliver(msg)
+            self.deliver(content)
 
     def __handle_peer(self, conn, addr):
         # Naive implementation for now
@@ -269,7 +273,7 @@ class Node:
                     data += subdata.decode('utf-8')
 
                 msg = data
-                self.b_deliver(msg)
+                self.b_deliver(addr, msg)
             except OSError as e:
                 print(e)
                 return False
