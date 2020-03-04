@@ -26,6 +26,8 @@ class Node:
         self.out_socks_map = {}
         self.sequence_num = 0
 
+        self.received_messages = defaultdict(lambda: False)
+
         self.msg_queue = Queue()
 
         self.lock          = threading.Lock()
@@ -33,6 +35,7 @@ class Node:
         self.seq_lock      = threading.Lock()
         self.proposed_lock = threading.Lock()
         self.TO_lock       = threading.Lock()
+        self.msg_lock      = threading.Lock()
         
         self._make_server()
         self._start_server()
@@ -42,8 +45,8 @@ class Node:
         transaction_thread = threading.Thread(target=self.handle_transactions, daemon=True)
         transaction_thread.start()
 
-        #status_thread = threading.Thread(target=self.output_accounts, daemon=True)
-        #status_thread.start()
+        status_thread = threading.Thread(target=self.output_accounts, daemon=True)
+        status_thread.start()
         
         # Start listening on stdin
         while True:
@@ -57,8 +60,9 @@ class Node:
         while True:
             msg = self.msg_queue.get()
 
+            print (msg)
+            
             msg = msg.lower()
-            print(msg)
 
             if "deposit" in msg:
                 # handle deposit
@@ -181,10 +185,7 @@ class Node:
                 self.isis_queue = self.isis_queue[i+1:]
             self.TO_lock.release()
 
-                
-            
         elif "init" in msg:
-
             split = msg.split()
             id = split[1]
             content = " ".join(split[2:])
@@ -192,13 +193,14 @@ class Node:
             self.TO_lock.acquire()
             self.isis_queue.append((self.sequence_num, content, id, False))
             self.TO_lock.release()
-            
+
             self.seq_lock.acquire()
             self.unicast(self.out_socks_map[addr],
                          f"ISIS-TO-PROPOSE {self.sequence_num}")
             #self.out_socks_map[addr].sendall(str.encode(f"ISIS-TO-PROPOSE {self.sequence_num}"))
             self.sequence_num += 1
             self.seq_lock.release()
+                
         elif "propose" in msg:
             self.proposed_lock.acquire()
             self.proposed_times[addr] = int(msg.split()[1])
@@ -207,18 +209,49 @@ class Node:
     
     def multicast(self, msg):
         # Naive implementation for now
+        self.r_multicast(msg)
+
+    def r_multicast(self, msg):
+        msg = f"{uuid.uuid4()} msg"
+        self.b_multicast(msg)
+
+    def b_multicast(self, msg):
         if not "ISIS-TO" in msg:
             self.deliver(msg)
         
         for out in self.out_socks:
             self.unicast(out, msg) #out.sendall(str.encode(msg))
-
+    
     def unicast(self, sock, msg):
         msg = str.encode(msg)
         sock.send(struct.pack("i", len(msg)) + msg)
             
     def deliver(self, msg):
         self.msg_queue.put(msg)
+
+    def b_deliver(self, msg):
+        self.r_deliver(msg)
+
+    def r_deliver(self, msg):
+        # Check to see if message has been recieved
+        new_message = False
+        self.msg_lock.acquire()
+
+        msg_id, msg = msg.split(" ", 1)
+        if not self.received_messages[msg_id]: 
+            new_message = True
+            self.received_messages[msg_id] = True
+        self.msg_lock.release()
+
+
+        if not new_message:
+            return
+        
+        # Handle the message
+        if "ISIS-TO" in msg:
+            self.deliver_TO(addr[0], msg)
+        else:
+            self.deliver(msg)
 
     def __handle_peer(self, conn, addr):
         # Naive implementation for now
@@ -236,11 +269,7 @@ class Node:
                     data += subdata.decode('utf-8')
 
                 msg = data
-
-                if "ISIS-TO" in msg:
-                    self.deliver_TO(addr[0], msg)
-                else:
-                    self.deliver(msg)
+                self.b_deliver(msg)
             except OSError as e:
                 print(e)
                 return False
