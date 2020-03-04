@@ -30,12 +30,15 @@ class Node:
 
         self.msg_queue = Queue()
 
+        self.process_failed = False
+
         self.lock          = threading.Lock()
         self.acc_lock      = threading.Lock()
         self.seq_lock      = threading.Lock()
         self.proposed_lock = threading.Lock()
         self.TO_lock       = threading.Lock()
         self.msg_lock      = threading.Lock()
+        self.fail_lock     = threading.Lock()
         
         self._make_server()
         self._start_server()
@@ -107,52 +110,19 @@ class Node:
         self.num_response = 0
         id = uuid.uuid4()
 
-        # TODO: Maybe combine this with deliver
-        # self.TO_lock.acquire()
-        # self.isis_queue.append((self.sequence_num, msg, id, False))
-        # self.sequence_num += 1
-        # self.TO_lock.release()
-
         self.multicast(f"ISIS-TO-INIT {id} {msg}")
-
         
         # wait to hear back from everyone
         while self.num_response < len(self.in_conns):
             pass
         
-        # decide on proposed
+        # decide on final time
         self.proposed_lock.acquire()
         final_time = -1
-
         for k, v in self.proposed_times.items():
             final_time = max(final_time, v)
         self.proposed_lock.release()
         
-        # self.TO_lock.acquire()
-        # self.isis_queue.sort(key=lambda x: x[0])
-
-        # i = 0
-        # for i, queued_msg in enumerate(self.isis_queue):
-        #     seq_time, content, msg_id, deliverable = queued_msg
-
-        #     if id == msg_id:
-        #         deliverable = True
-        #         self.isis_queue[i] = (seq_time, content, msg_id, True)
-
-        #     if not deliverable:
-        #         break
-
-        #     self.deliver(content)
-
-        # # Need to remove sent messages from the queue
-        # if i + 1 >= len(self.isis_queue):
-        #     self.isis_queue = []
-        # else:
-        #     self.isis_queue = self.isis_queue[i+1:]
-        
-        # self.TO_lock.release()
-
-
         # tell everyone else
         self.multicast(f"ISIS-TO-FINAL {final_time} {id}")
 
@@ -198,7 +168,6 @@ class Node:
             if addr != socket.gethostname():
                 self.r_unicast(self.out_socks_map[addr],
                                f"ISIS-TO-PROPOSE {self.sequence_num}")
-            #self.out_socks_map[addr].sendall(str.encode(f"ISIS-TO-PROPOSE {self.sequence_num}"))
             self.sequence_num += 1
             self.seq_lock.release()
                 
@@ -213,9 +182,6 @@ class Node:
         self.r_multicast(msg)
 
     def r_multicast(self, msg):
-        #if not "ISIS-TO" in msg:
-        #    self.deliver(msg)
-            
         msg = f"{uuid.uuid4()} {msg}"
         self.r_deliver((socket.gethostname(), ""), msg)
         self.b_multicast(msg)
@@ -277,7 +243,15 @@ class Node:
                 msg = data
                 self.b_deliver(addr, msg)
             except OSError as e:
-                print(e)
+                print("Caught failure")
+                return False
+            except struct.error as e:
+                print("Caught failure")
+
+                self.in_conns.remove(conn)
+                self.out_socks.remove(self.out_socks_map[addr[0]])
+                self.out_socks_map[addr[0]] = None
+                
                 return False
     
     #####################################
@@ -295,8 +269,8 @@ class Node:
     def __listen_for_connections(self):
         while True:
             conn, address = self.sock.accept()
-            peer_thread = threading.Thread(target=self.__handle_peer, args=(conn, address))
-            self.in_conns.append(peer_thread)
+            peer_thread = threading.Thread(target=self.__handle_peer, args=(conn, address), daemon=True)
+            self.in_conns.append(conn)
             peer_thread.start()
             
     def __connect_to_node(self, addr):
