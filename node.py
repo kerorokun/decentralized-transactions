@@ -195,7 +195,6 @@ class Node:
             self.TO_lock.release()
 
             self.seq_lock.acquire()
-
             if addr != socket.gethostname():
                 self.r_unicast(self.out_socks_map[addr],
                                f"ISIS-TO-PROPOSE {self.sequence_num}")
