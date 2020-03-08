@@ -8,7 +8,6 @@ import heapq
 import uuid
 import struct
 import os
-import matplotlib.pyplot as plt
 
 num_nodes_in_system = int(sys.argv[1])
 port = int(sys.argv[2])
@@ -67,8 +66,6 @@ class Node:
                 for line in sys.stdin:
                     self.multicast_TO(line)
         except KeyboardInterrupt:
-            #print("##### Generating graphs #####", file=sys.stderr)
-            #self.generate_graphs()
             pass
 
     ##################################
@@ -82,11 +79,11 @@ class Node:
             
             msg = msg.lower()
 
-            if "deposit" in msg:
+            if 'deposit' in msg:
                 # handle deposit
                 params = msg.split()
                 self.deposit(params[1], float(params[2]))
-            elif "transfer" in msg:
+            elif 'transfer' in msg:
                 # handle transfer
                 params = msg.split()
                 self.withdraw(params[1], params[3], float(params[4]))
@@ -111,10 +108,10 @@ class Node:
     def output_accounts(self):
         while True:
             self.acc_lock.acquire()
-            balances = " ".join([ f"{acc}:{amt}" for acc, amt in self.accounts.items() if amt > 0 ])
+            balances = ' '.join([ f'{acc}:{amt}' for acc, amt in self.accounts.items() if amt > 0 ])
             self.acc_lock.release()
         
-            print(f"BALANCES {balances}")
+            print(f'BALANCES {balances}')
             time.sleep(5)
             
     ##################################
@@ -125,7 +122,7 @@ class Node:
         self.num_response = 0
         id = uuid.uuid4()
 
-        self.multicast(f"ISIS-TO-INIT {id} {time.time()} {msg}")
+        self.multicast(f'ISIS-TO-INIT {id} {time.time()} {msg}')
         
         # wait to hear back from everyone
         while self.num_response < len(self.in_conns):
@@ -139,12 +136,12 @@ class Node:
         self.proposed_lock.release()
         
         # tell everyone else
-        self.multicast(f"ISIS-TO-FINAL {final_time} {id}")
+        self.multicast(f'ISIS-TO-FINAL {final_time} {id}')
 
 
     def deliver_TO(self, addr, msg):
         msg = msg.lower()
-        if "isis-to-final" in msg:
+        if 'isis-to-final' in msg:
 
             _, final_time, id = msg.split()
 
@@ -162,7 +159,7 @@ class Node:
                 if not deliverable:
                     break
 
-                self.msg_time_queue.put((id, f"{time.time() - float(start_time)}"))
+                self.msg_time_queue.put((id, f'{time.time() - float(start_time)}'))
                 self.deliver(content)
                 
             if i + 1 >= len(self.isis_queue):
@@ -171,10 +168,10 @@ class Node:
                 self.isis_queue = self.isis_queue[i+1:]
             self.TO_lock.release()
 
-        elif "init" in msg:
-            _, id, start_time, content = msg.split(" ", 3)
+        elif 'init' in msg:
+            _, id, start_time, content = msg.split(' ', 3)
             #id = split[1]
-            #content = " ".join(split[2:])
+            #content = ' '.join(split[2:])
 
             self.TO_lock.acquire()
             self.isis_queue.append((self.sequence_num, start_time, content, id, False))
@@ -183,11 +180,11 @@ class Node:
             self.seq_lock.acquire()
             if addr != socket.gethostname():
                 self.r_unicast(self.out_socks_map[addr],
-                               f"ISIS-TO-PROPOSE {self.sequence_num}")
+                               f'ISIS-TO-PROPOSE {self.sequence_num}')
             self.sequence_num += 1
             self.seq_lock.release()
                 
-        elif "propose" in msg:
+        elif 'propose' in msg:
             self.proposed_lock.acquire()
             self.proposed_times[addr] = int(msg.split()[1])
             self.num_response += 1
@@ -198,8 +195,8 @@ class Node:
         self.r_multicast(msg)
 
     def r_multicast(self, msg):
-        msg = f"{uuid.uuid4()} {msg}"
-        self.r_deliver((socket.gethostname(), ""), msg)
+        msg = f'{uuid.uuid4()} {msg}'
+        self.r_deliver((socket.gethostname(), ''), msg)
         self.b_multicast(msg)
 
     def b_multicast(self, msg):
@@ -207,12 +204,12 @@ class Node:
             self.unicast(out, msg) #out.sendall(str.encode(msg))
 
     def r_unicast(self, sock, msg):
-        msg = f"{uuid.uuid4()} {msg}"
+        msg = f'{uuid.uuid4()} {msg}'
         self.unicast(sock, msg)
             
     def unicast(self, sock, msg):
         msg = str.encode(msg)
-        sock.send(struct.pack("i", len(msg)) + msg)
+        sock.send(struct.pack('i', len(msg)) + msg)
             
     def deliver(self, msg):
         self.msg_queue.put(msg)
@@ -222,7 +219,7 @@ class Node:
 
     def r_deliver(self, addr, msg):
         # Check to see if message has been recieved
-        msg_id, content = msg.split(" ", 1)
+        msg_id, content = msg.split(' ', 1)
         new_message = False
         
         self.msg_lock.acquire()
@@ -236,7 +233,7 @@ class Node:
             return
         
         # Handle the message
-        if "ISIS-TO" in content:
+        if 'ISIS-TO' in content:
             self.deliver_TO(addr[0], content)
         else:
             self.deliver(content)
@@ -245,8 +242,8 @@ class Node:
         # Naive implementation for now
         while True:
             try:
-                msg_size = struct.unpack("i", conn.recv(struct.calcsize("i")))[0]
-                msg = ""
+                msg_size = struct.unpack('i', conn.recv(struct.calcsize('i')))[0]
+                msg = ''
                 #msg = conn.recv(1024)
                 #if not msg:
                 #    break
@@ -259,10 +256,10 @@ class Node:
                 self.bandwidth_queue.put((time.time(), msg_size))
                 self.b_deliver(addr, msg)
             except OSError as e:
-                print("Caught failure", file=sys.stderr)
+                print('Caught failure', file=sys.stderr)
                 return False
             except struct.error as e:
-                print("Caught failure", file=sys.stderr)
+                print('Caught failure', file=sys.stderr)
 
                 self.in_conns.remove(conn)
                 self.out_socks.remove(self.out_socks_map[addr[0]])
@@ -309,7 +306,7 @@ class Node:
         # Connect to the others (note: hardcoded so potentially dangerous)
         valid_addresses = [ f'sp20-cs425-g36-0{x}.cs.illinois.edu' for x in range(1, num_nodes_in_system+1) ]
         valid_addresses = [ x for x in valid_addresses if x != socket.gethostname() ]
-        print(f"Connecting to {valid_addresses}", file=sys.stderr)
+        print(f'Connecting to {valid_addresses}', file=sys.stderr)
         for addr in valid_addresses:
             threading.Thread(target=self.__connect_to_node, args=((addr), )).start()
         
@@ -359,7 +356,7 @@ class Node:
                             break
                         total_size += size
 
-                    fp.write(f"{total_size}\n")
+                    fp.write(f'{total_size}\n')
                     fp.flush()
                 except Exception as e:
                     pass
@@ -373,22 +370,9 @@ class Node:
             while True:
                 id, delivery_time = self.msg_time_queue.get()
 
-                fp.write(f"{id} {delivery_time}\n")
+                fp.write(f'{id} {delivery_time}\n')
                 fp.flush()
             
-
-    def generate_graphs(self):
-        bandwidths = []
-        with open(self.log_file, 'r') as fp:
-            for line in fp:
-                bandwidths.append(int(line))
-                
-        plt.plot(bandwidths, label='Bandwidth (bytes)')
-        plt.xlabel('Time (s)')
-        plt.ylabel('Bandwidth (bytes)')
-        plt.title('Bandwidth Per Second')
-        plt.savefig('bandwidth.png', dpi=600, bbox_inches='tight')
-        plt.clf()
         
 if __name__ == '__main__':
     node = Node()
