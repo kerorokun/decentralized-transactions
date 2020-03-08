@@ -65,12 +65,10 @@ class Node:
         try:
             while True:
                 i = 0
-                FLUSH_AMOUNT = 10
-                for line in sys.stdin:
-                    if i > FLUSH_AMOUNT:
+                FLUSH_AMOUNT = 2
+                for i, line in enumerate(sys.stdin):
+                    if i >= FLUSH_AMOUNT:
                         self.multicast_TO(line)
-                    else:
-                        i += 1
         except KeyboardInterrupt:
             pass
 
