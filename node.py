@@ -15,6 +15,7 @@ port = int(sys.argv[2])
 class Node:
 
     def __init__(self):
+        self.MSG_THRESHOLD = 2
         self.accounts  = defaultdict(lambda: -1)
 
         self.isis_queue = []
@@ -148,6 +149,9 @@ class Node:
             self.TO_lock.acquire()
             self.isis_queue.sort(key=lambda x: x[0])
 
+            curr_time = time.time()
+            self.isis_queue = [m for m in self.isis_queue if curr_time - m[1] < self.MSG_THRESHOLD]
+            
             i = 0
             for i, queued_msg in enumerate(self.isis_queue):
                 seq_time, start_time, content, msg_id, deliverable = queued_msg
@@ -159,7 +163,7 @@ class Node:
                 if not deliverable:
                     break
 
-                self.msg_time_queue.put((id, f'{time.time() - float(start_time)}'))
+                self.msg_time_queue.put((id, f'{time.time() - start_time}'))
                 self.deliver(content)
                 
             if i + 1 >= len(self.isis_queue):
@@ -174,7 +178,7 @@ class Node:
             #content = ' '.join(split[2:])
 
             self.TO_lock.acquire()
-            self.isis_queue.append((self.sequence_num, start_time, content, id, False))
+            self.isis_queue.append((self.sequence_num, float(start_time), content, id, False))
             self.TO_lock.release()
 
             self.seq_lock.acquire()
@@ -273,7 +277,7 @@ class Node:
     def _make_server(self):
         # Create server and start listening
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        # self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         host = socket.gethostname()
         
         self.sock.bind((host, port))
@@ -325,11 +329,11 @@ class Node:
     #######################################
     def calculate_bandwidth(self):
         curr_dir = os.path.dirname(os.path.abspath(__file__))
-        self.log_file = os.path.join(curr_dir, 'bandwidths.txt')
+        log_file = os.path.join(curr_dir, 'bandwidths.txt')
         curr_time = -10
         leftover_event = None
 
-        with open(self.log_file, 'w') as fp:
+        with open(log_file, 'w') as fp:
             while True:
                 curr_time += 1
 
