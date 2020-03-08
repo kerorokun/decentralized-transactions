@@ -64,8 +64,11 @@ class Node:
         # Start listening on stdin
         try:
             while True:
+                should_send = False
                 for line in sys.stdin:
-                    self.multicast_TO(line)
+                    if should_send:
+                        self.multicast_TO(line)
+                should_send = True
         except KeyboardInterrupt:
             pass
 
@@ -121,7 +124,7 @@ class Node:
     #################################
 
     def generate_unique_id(self):
-        return f"{socket.gethostname()}-{time.time()}"
+        return f'{socket.gethostname()}-{time.time()}'
     
     def multicast_TO(self, msg):
         # multicast to everyone
@@ -329,6 +332,7 @@ class Node:
 
         # Wait for a few seconds
         time.sleep(2)
+        print(f'Connected to {len(self.in_conns)}')
 
     ########################################
     ### Metric collection
