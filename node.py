@@ -7,6 +7,8 @@ import time
 import heapq
 import uuid
 import struct
+import os
+import matplotlib.pyplot as plt
 
 num_nodes_in_system = int(sys.argv[1])
 port = int(sys.argv[2])
@@ -29,6 +31,8 @@ class Node:
         self.received_messages = defaultdict(lambda: False)
 
         self.msg_queue = Queue()
+        self.bandwidth_queue = Queue()
+        self.msg_time_queue = Queue()
 
         self.process_failed = False
 
@@ -50,11 +54,22 @@ class Node:
 
         status_thread = threading.Thread(target=self.output_accounts, daemon=True)
         status_thread.start()
+
+        bandwidth_thread = threading.Thread(target=self.calculate_bandwidth, daemon=True)
+        bandwidth_thread.start()
+
+        msg_time_thread = threading.Thread(target=self.calculate_msg_times, daemon=True)
+        msg_time_thread.start()
         
         # Start listening on stdin
-        while True:
-            for line in sys.stdin:
-                self.multicast_TO(line)
+        try:
+            while True:
+                for line in sys.stdin:
+                    self.multicast_TO(line)
+        except KeyboardInterrupt:
+            #print("##### Generating graphs #####", file=sys.stderr)
+            #self.generate_graphs()
+            pass
 
     ##################################
     ## Transaction handling
@@ -63,7 +78,7 @@ class Node:
         while True:
             msg = self.msg_queue.get()
 
-            print (msg)
+            print (msg, file=sys.stderr)
             
             msg = msg.lower()
 
@@ -110,7 +125,7 @@ class Node:
         self.num_response = 0
         id = uuid.uuid4()
 
-        self.multicast(f"ISIS-TO-INIT {id} {msg}")
+        self.multicast(f"ISIS-TO-INIT {id} {time.time()} {msg}")
         
         # wait to hear back from everyone
         while self.num_response < len(self.in_conns):
@@ -138,15 +153,16 @@ class Node:
 
             i = 0
             for i, queued_msg in enumerate(self.isis_queue):
-                seq_time, content, msg_id, deliverable = queued_msg
+                seq_time, start_time, content, msg_id, deliverable = queued_msg
 
                 if id == msg_id:
                     deliverable = True
-                    self.isis_queue[i] = (seq_time, content, msg_id, True)
+                    self.isis_queue[i] = (seq_time, start_time, content, msg_id, True)
 
                 if not deliverable:
                     break
 
+                self.msg_time_queue.put(f"{time.time() - int(start_time)}")
                 self.deliver(content)
                 
             if i + 1 >= len(self.isis_queue):
@@ -156,12 +172,12 @@ class Node:
             self.TO_lock.release()
 
         elif "init" in msg:
-            split = msg.split()
-            id = split[1]
-            content = " ".join(split[2:])
+            _, id, start_time, content = msg.split(" ", 3)
+            #id = split[1]
+            #content = " ".join(split[2:])
 
             self.TO_lock.acquire()
-            self.isis_queue.append((self.sequence_num, content, id, False))
+            self.isis_queue.append((self.sequence_num, start_time, content, id, False))
             self.TO_lock.release()
 
             self.seq_lock.acquire()
@@ -229,24 +245,24 @@ class Node:
         # Naive implementation for now
         while True:
             try:
-                data_size = struct.unpack("i", conn.recv(struct.calcsize("i")))[0]
-                data = ""
-                #data = conn.recv(1024)
-                #if not data:
+                msg_size = struct.unpack("i", conn.recv(struct.calcsize("i")))[0]
+                msg = ""
+                #msg = conn.recv(1024)
+                #if not msg:
                 #    break
-                while len(data) < data_size:
-                    subdata = conn.recv(data_size - len(data))
-                    if not subdata:
+                while len(msg) < msg_size:
+                    submsg = conn.recv(msg_size - len(msg))
+                    if not submsg:
                         break
-                    data += subdata.decode('utf-8')
+                    msg += submsg.decode('utf-8')
 
-                msg = data
+                self.bandwidth_queue.put((time.time(), msg_size))
                 self.b_deliver(addr, msg)
             except OSError as e:
-                print("Caught failure")
+                print("Caught failure", file=sys.stderr)
                 return False
             except struct.error as e:
-                print("Caught failure")
+                print("Caught failure", file=sys.stderr)
 
                 self.in_conns.remove(conn)
                 self.out_socks.remove(self.out_socks_map[addr[0]])
@@ -293,7 +309,7 @@ class Node:
         # Connect to the others (note: hardcoded so potentially dangerous)
         valid_addresses = [ f'sp20-cs425-g36-0{x}.cs.illinois.edu' for x in range(1, num_nodes_in_system+1) ]
         valid_addresses = [ x for x in valid_addresses if x != socket.gethostname() ]
-        print(f"Connecting to {valid_addresses}")
+        print(f"Connecting to {valid_addresses}", file=sys.stderr)
         for addr in valid_addresses:
             threading.Thread(target=self.__connect_to_node, args=((addr), )).start()
         
@@ -307,8 +323,72 @@ class Node:
         # Wait for a few seconds
         time.sleep(2)
 
-        
-        
+    ########################################
+    ### Metric collection
+    #######################################
+    def calculate_bandwidth(self):
+        curr_dir = os.path.dirname(os.path.abspath(__file__))
+        self.log_file = os.path.join(curr_dir, 'bandwidths.txt')
+        curr_time = -10
+        leftover_event = None
 
+        with open(self.log_file, 'w') as fp:
+            while True:
+                curr_time += 1
+
+                total_size = 0
+
+                # Check if leftover event is applicable
+                if leftover_event and curr_time > 0:
+                    receive_time, size = leftover_event
+                    if receive_time > curr_time + 1:
+                        fp.write('0\n')
+                    else:
+                        total_size += size
+                    leftover_event = None
+
+                try:
+                    while True:
+                        receive_time, size = self.bandwidth_queue.get()
+
+                        if curr_time <= 0:
+                            curr_time = receive_time
+
+                        if receive_time > curr_time + 1:
+                            leftover_event = (receive_time, size)
+                            break
+                        total_size += size
+
+                    fp.write(f"{total_size}\n")
+                    fp.flush()
+                except Exception as e:
+                    pass
+
+    def calculate_msg_times(self):
+        curr_dir = os.path.dirname(os.path.abspath(__file__))
+        time_file = os.path.join(curr_dir, 'times.txt')
+
+        with open(time_file, 'w') as fp:
+
+            while True:
+                id, delivery_time = self.msg_time_queue.get()
+
+                fp.write(f"{id} {delivery_time}\n")
+                fp.flush()
+            
+
+    def generate_graphs(self):
+        bandwidths = []
+        with open(self.log_file, 'r') as fp:
+            for line in fp:
+                bandwidths.append(int(line))
+                
+        plt.plot(bandwidths, label='Bandwidth (bytes)')
+        plt.xlabel('Time (s)')
+        plt.ylabel('Bandwidth (bytes)')
+        plt.title('Bandwidth Per Second')
+        plt.savefig('bandwidth.png', dpi=600, bbox_inches='tight')
+        plt.clf()
+        
 if __name__ == '__main__':
     node = Node()
