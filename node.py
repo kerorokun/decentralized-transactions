@@ -109,7 +109,8 @@ class Node:
     def output_accounts(self):
         while True:
             self.acc_lock.acquire()
-            balances = ' '.join([ f'{acc}:{amt}' for acc, amt in self.accounts.items() if amt > 0 ])
+            balances = sorted(self.accounts.items(), key=lambda t: t[0])
+            balances = ' '.join([ f'{acc}:{amt}' for (acc, amt) in balances if amt >= 0 ])
             self.acc_lock.release()
         
             print(f'BALANCES {balances}')
