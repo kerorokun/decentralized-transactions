@@ -1,5 +1,11 @@
+import sys
 import os
 import matplotlib.pyplot as plt
+import paramiko
+import socket
+from collections import defaultdict
+
+num_nodes_in_system = int(sys.argv[1])
 
 def generate_graphs():
     curr_dir = os.path.dirname(os.path.abspath(__file__))
@@ -18,5 +24,54 @@ def generate_graphs():
     plt.clf()
 
 
+    valid_addresses = [ f'sp20-cs425-g36-0{x}.cs.illinois.edu' for x in range(1, num_nodes_in_system+1) ]
+    valid_addresses = [ x for x in valid_addresses if x != socket.gethostname() ]
+
+    max_dict = defaultdict(int)
+    min_dict = defaultdict(lambda: float("inf"))
+
+    times_file = os.path.join(curr_dir, 'times.txt')
+    with open(times_file, 'r') as fp:
+        for line in fp:
+            id, send_time = line.split()
+            max_dict[id] = max(max_dict[id], float(send_time))
+            min_dict[id] = min(min_dict[id], float(send_time))
+    
+    for addr in valid_addresses:
+        print(addr)
+        
+        ssh_client = paramiko.SSHClient()
+        ssh_client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh_client.connect(hostname=addr,
+                           username='*****',
+                           password='*****')
+        sftp_client = ssh_client.open_sftp()
+        sftp_client.chdir('decentralized-transactions')
+        print(sftp_client.listdir())
+        remote_file = sftp_client.open('times.txt')
+
+        for line in remote_file:
+            id, send_time = line.split()
+            max_dict[id] = max(max_dict[id], float(send_time))
+            min_dict[id] = min(min_dict[id], float(send_time))
+            
+        sftp_client.close()
+        ssh_client.close()
+
+    mins = []
+    maxes = []
+    for id in max_dict:
+        mins.append(min_dict[id])
+        maxes.append(max_dict[id])
+
+    plt.plot(mins, label='Min time')
+    plt.plot(maxes, label='Max time')
+    plt.xlabel('Msg')
+    plt.ylabel('Time (s)')
+    plt.title('Message Processing Time')
+    plt.savefig('msg_send_time.png', dpi=600, bbox_inches='tight')
+    plt.clf()
+
+        
 if __name__ == '__main__':
     generate_graphs()
