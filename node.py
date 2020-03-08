@@ -162,7 +162,7 @@ class Node:
                 if not deliverable:
                     break
 
-                self.msg_time_queue.put(f"{time.time() - int(start_time)}")
+                self.msg_time_queue.put(f"{time.time() - float(start_time)}")
                 self.deliver(content)
                 
             if i + 1 >= len(self.isis_queue):
