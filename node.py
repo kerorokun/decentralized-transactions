@@ -115,14 +115,18 @@ class Node:
         
             print(f'BALANCES {balances}')
             time.sleep(5)
-            
+
     ##################################
     ## Multicasting
     #################################
+
+    def generate_unique_id(self):
+        return f"{socket.gethostname()}-{time.time()}"
+    
     def multicast_TO(self, msg):
         # multicast to everyone
         self.num_response = 0
-        id = uuid.uuid4()
+        id = self.generate_unique_id()#uuid.uuid4()
 
         self.multicast(f'ISIS-TO-INIT {id} {time.time()} {msg}')
         
@@ -196,11 +200,11 @@ class Node:
             self.proposed_lock.release()
     
     def multicast(self, msg):
-        # Naive implementation for now
         self.r_multicast(msg)
 
     def r_multicast(self, msg):
-        msg = f'{uuid.uuid4()} {msg}'
+        id = self.generate_unique_id()
+        msg = f'{id} {msg}'
         self.r_deliver((socket.gethostname(), ''), msg)
         self.b_multicast(msg)
 
@@ -209,7 +213,8 @@ class Node:
             self.unicast(out, msg) #out.sendall(str.encode(msg))
 
     def r_unicast(self, sock, msg):
-        msg = f'{uuid.uuid4()} {msg}'
+        id = self.generate_unique_id()
+        msg = f'{id} {msg}'
         self.unicast(sock, msg)
             
     def unicast(self, sock, msg):
@@ -238,10 +243,10 @@ class Node:
             return
         
         # Handle the message
-        if 'ISIS-TO' in content:
-            self.deliver_TO(addr[0], content)
-        else:
-            self.deliver(content)
+        #if 'ISIS-TO' in content:
+        self.deliver_TO(addr[0], content)
+        #else:
+        #    self.deliver(content)
 
     def __handle_peer(self, conn, addr):
         # Naive implementation for now
