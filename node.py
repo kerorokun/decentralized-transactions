@@ -64,11 +64,13 @@ class Node:
         # Start listening on stdin
         try:
             while True:
-                should_send = False
+                i = 0
+                FLUSH_AMOUNT = 10
                 for line in sys.stdin:
-                    if should_send:
+                    if i > FLUSH_AMOUNT:
                         self.multicast_TO(line)
-                should_send = True
+                    else:
+                        i += 1
         except KeyboardInterrupt:
             pass
 
