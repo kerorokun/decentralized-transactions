@@ -27,7 +27,7 @@ class Node:
         self.in_conns  = []
         self.out_socks = []
         self.out_socks_map = {}
-        self.sequence_num = 0
+        self.sequence_num = 1
 
         self.received_messages = defaultdict(lambda: False)
 
@@ -146,7 +146,7 @@ class Node:
         
         # decide on final time
         self.proposed_lock.acquire()
-        final_time = -1
+        final_time = "0"
         for k, v in self.proposed_times.items():
             final_time = max(final_time, v)
         self.proposed_lock.release()
@@ -167,7 +167,7 @@ class Node:
 
                 if id == msg_id:
                     deliverable = True
-                    self.isis_queue[i] = (float(final_time), start_time, content, msg_id, True)
+                    self.isis_queue[i] = (final_time, start_time, content, msg_id, True)
             
             self.isis_queue.sort(key=lambda x: x[0])
 
@@ -200,13 +200,14 @@ class Node:
             #content = ' '.join(split[2:])
 
             self.TO_lock.acquire()
-            self.isis_queue.append((self.sequence_num, float(start_time), content, id, False))
+            proposal = f"{self.sequence_num}-{socket.gethostname()}"
+            self.isis_queue.append((proposal, float(start_time), content, id, False))
             self.TO_lock.release()
 
             self.seq_lock.acquire()
             if addr != socket.gethostname():
                 self.r_unicast(self.out_socks_map[addr],
-                               f'ISIS-TO-PROPOSE {self.sequence_num}')
+                               f'ISIS-TO-PROPOSE {proposal}')
             self.sequence_num += 1
             self.seq_lock.release()
                 
