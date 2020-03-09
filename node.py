@@ -163,7 +163,7 @@ class Node:
             self.isis_queue.sort(key=lambda x: x[0])
 
             curr_time = time.time()
-            self.isis_queue = [m for m in self.isis_queue if curr_time - m[1] < self.MSG_THRESHOLD]
+            #self.isis_queue = [m for m in self.isis_queue if curr_time - m[1] < self.MSG_THRESHOLD]
             
             i = 0
             for i, queued_msg in enumerate(self.isis_queue):
