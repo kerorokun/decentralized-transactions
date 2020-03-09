@@ -65,10 +65,13 @@ class Node:
         try:
             while True:
                 i = 0
-                FLUSH_AMOUNT = 2
-                for i, line in enumerate(sys.stdin):
-                    if i >= FLUSH_AMOUNT:
-                        self.multicast_TO(line)
+                flush_time = time.time() + 2.0
+                for _ in sys.stdin:
+                    if time.time() > flush_time:
+                        break
+                    
+                for line in sys.stdin:
+                    self.multicast_TO(line)
         except KeyboardInterrupt:
             pass
 
