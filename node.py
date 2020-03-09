@@ -240,6 +240,7 @@ class Node:
 
     def b_deliver(self, addr, msg):
         #self.r_deliver(addr, msg)
+        msg_id, content = msg.split(' ', 1)
         self.deliver_TO(addr[0], content)
 
     def r_deliver(self, addr, msg):
