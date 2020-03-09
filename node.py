@@ -180,7 +180,7 @@ class Node:
             curr_time = time.time()
             #self.isis_queue = [m for m in self.isis_queue if not m[4] and curr_time - m[1] < self.MSG_THRESHOLD]
             
-            i = 0
+            #i = 0
             for i, queued_msg in enumerate(self.isis_queue):
                 seq_time, start_time, content, msg_id, deliverable = queued_msg
 
@@ -193,11 +193,10 @@ class Node:
 
                 self.msg_time_queue.put((id, f'{time.time() - start_time}'))
                 self.deliver(content)
+                self.isis_queue[i] = None#(, start_time, content, msg_id, True)
                 
-            if i + 1 >= len(self.isis_queue):
-                self.isis_queue = []
-            else:
-                self.isis_queue = self.isis_queue[i+1:]
+
+            self.isis_queue = [m for m in self.isis_queue if not m is None]
             self.TO_lock.release()
 
         elif 'init' in msg:
