@@ -135,7 +135,7 @@ class Node:
         self.num_response = 0
         self.responders.clear()
         self.proposed_lock.release()
-        
+
         id = self.generate_unique_id()#uuid.uuid4()
 
         self.multicast(f'ISIS-TO-INIT {id} {time.time()} {msg}')
@@ -154,7 +154,7 @@ class Node:
         # tell everyone else
         self.multicast(f'ISIS-TO-FINAL {final_time} {id}')
 
-
+        
     def deliver_TO(self, addr, msg):
         msg = msg.lower()
         if 'isis-to-final' in msg:
@@ -162,6 +162,13 @@ class Node:
             _, final_time, id = msg.split()
 
             self.TO_lock.acquire()
+            for i, queued_msg in enumerate(self.isis_queue):
+                seq_time, start_time, content, msg_id, deliverable = queued_msg
+
+                if id == msg_id:
+                    deliverable = True
+                    self.isis_queue[i] = (float(final_time), start_time, content, msg_id, True)
+            
             self.isis_queue.sort(key=lambda x: x[0])
 
             curr_time = time.time()
@@ -170,10 +177,6 @@ class Node:
             i = 0
             for i, queued_msg in enumerate(self.isis_queue):
                 seq_time, start_time, content, msg_id, deliverable = queued_msg
-
-                if id == msg_id:
-                    deliverable = True
-                    self.isis_queue[i] = (seq_time, start_time, content, msg_id, True)
 
                 if not deliverable:
                     if curr_time - start_time < self.MSG_THRESHOLD:
