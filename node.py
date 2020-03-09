@@ -163,7 +163,7 @@ class Node:
             self.isis_queue.sort(key=lambda x: x[0])
 
             curr_time = time.time()
-            self.isis_queue = [m for m in self.isis_queue if not m[4] and curr_time - m[1] < self.MSG_THRESHOLD]
+            #self.isis_queue = [m for m in self.isis_queue if not m[4] and curr_time - m[1] < self.MSG_THRESHOLD]
             
             i = 0
             for i, queued_msg in enumerate(self.isis_queue):
@@ -174,7 +174,10 @@ class Node:
                     self.isis_queue[i] = (seq_time, start_time, content, msg_id, True)
 
                 if not deliverable:
-                    break
+                    if curr_time - start_time < self.MSG_THRESHOLD:
+                        break
+                    else:
+                        continue
 
                 self.msg_time_queue.put((id, f'{time.time() - start_time}'))
                 self.deliver(content)
