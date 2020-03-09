@@ -22,6 +22,7 @@ class Node:
         
         self.proposed_times = defaultdict(lambda: -1)
         self.num_response = 0
+        self.responders = defaultdict(lambda: False)
         
         self.in_conns  = []
         self.out_socks = []
@@ -131,6 +132,7 @@ class Node:
     def multicast_TO(self, msg):
         # multicast to everyone
         self.num_response = 0
+        self.responders.clear()
         id = self.generate_unique_id()#uuid.uuid4()
 
         self.multicast(f'ISIS-TO-INIT {id} {time.time()} {msg}')
@@ -200,8 +202,11 @@ class Node:
                 
         elif 'propose' in msg:
             self.proposed_lock.acquire()
-            self.proposed_times[addr] = int(msg.split()[1])
-            self.num_response += 1
+
+            if not self.responders[addr]:
+                self.proposed_times[addr] = int(msg.split()[1])
+                self.num_response += 1
+                self.responders[addr] = True
             self.proposed_lock.release()
     
     def multicast(self, msg):
@@ -238,7 +243,6 @@ class Node:
         new_message = False
         
         self.msg_lock.acquire()
-
         if not self.received_messages[msg_id]: 
             new_message = True
             self.received_messages[msg_id] = True
