@@ -215,7 +215,7 @@ class Node:
             self.proposed_lock.acquire()
 
             if not self.responders[addr]:
-                self.proposed_times[addr] = int(msg.split()[1])
+                self.proposed_times[addr] = msg.split()[1]
                 self.num_response += 1
                 self.responders[addr] = True
             self.proposed_lock.release()
