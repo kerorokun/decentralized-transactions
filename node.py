@@ -72,6 +72,7 @@ class Node:
                     
                 for line in sys.stdin:
                     self.multicast_TO(line)
+                    time.sleep(0.05)
         except KeyboardInterrupt:
             pass
 
