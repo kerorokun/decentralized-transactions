@@ -334,8 +334,7 @@ class Node:
             pass
 
         # Wait for a few seconds
-        time.sleep(2)
-        print(f'Connected to {len(self.in_conns)}')
+        time.sleep(1)
 
     ########################################
     ### Metric collection
