@@ -249,7 +249,7 @@ class Node:
         
         # Handle the message
         #if 'ISIS-TO' in content:
-        self.b_mutlicast(msg)
+        self.b_multicast(msg)
 
         self.deliver_TO(addr[0], content)
         #else:
