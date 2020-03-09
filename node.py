@@ -131,8 +131,11 @@ class Node:
     
     def multicast_TO(self, msg):
         # multicast to everyone
+        self.proposed_lock.acquire()
         self.num_response = 0
         self.responders.clear()
+        self.proposed_lock.release()
+        
         id = self.generate_unique_id()#uuid.uuid4()
 
         self.multicast(f'ISIS-TO-INIT {id} {time.time()} {msg}')
