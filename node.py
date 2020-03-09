@@ -173,10 +173,10 @@ class Node:
                     self.isis_queue[i] = (seq_time, start_time, content, msg_id, True)
 
                 if not deliverable:
-                    #if curr_time - start_time < self.MSG_THRESHOLD:
-                    #    break
-                    #else:
-                    #    continue
+                    if curr_time - start_time < self.MSG_THRESHOLD:
+                        break
+                    else:
+                        continue
                     break
 
                 self.msg_time_queue.put((id, f'{time.time() - start_time}'))
