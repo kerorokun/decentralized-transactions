@@ -15,13 +15,14 @@ port = int(sys.argv[2])
 class Node:
 
     def __init__(self):
-        self.MSG_THRESHOLD = 2
+        self.MSG_THRESHOLD = 20
         self.accounts  = defaultdict(lambda: -1)
 
         self.isis_queue = []
         
         self.proposed_times = defaultdict(lambda: -1)
         self.num_response = 0
+        self.responders = defaultdict(lambda: False)
         
         self.in_conns  = []
         self.out_socks = []
@@ -64,6 +65,11 @@ class Node:
         # Start listening on stdin
         try:
             while True:
+                flush_time = time.time() + 2.0
+                for _ in sys.stdin:
+                    if time.time() > flush_time:
+                        break
+                    
                 for line in sys.stdin:
                     self.multicast_TO(line)
         except KeyboardInterrupt:
@@ -109,19 +115,25 @@ class Node:
     def output_accounts(self):
         while True:
             self.acc_lock.acquire()
-            balances = ' '.join([ f'{acc}:{amt}' for acc, amt in self.accounts.items() if amt > 0 ])
+            balances = sorted(self.accounts.items(), key=lambda t: t[0])
+            balances = ' '.join([ f'{acc}:{amt}' for (acc, amt) in balances if amt >= 0 ])
             self.acc_lock.release()
         
             print(f'BALANCES {balances}')
             time.sleep(5)
-            
+
     ##################################
     ## Multicasting
     #################################
+
+    def generate_unique_id(self):
+        return f'{socket.gethostname()}-{time.time()}'
+    
     def multicast_TO(self, msg):
         # multicast to everyone
         self.num_response = 0
-        id = uuid.uuid4()
+        self.responders.clear()
+        id = self.generate_unique_id()#uuid.uuid4()
 
         self.multicast(f'ISIS-TO-INIT {id} {time.time()} {msg}')
         
@@ -150,7 +162,7 @@ class Node:
             self.isis_queue.sort(key=lambda x: x[0])
 
             curr_time = time.time()
-            self.isis_queue = [m for m in self.isis_queue if curr_time - m[1] < self.MSG_THRESHOLD]
+            #self.isis_queue = [m for m in self.isis_queue if not m[4] and curr_time - m[1] < self.MSG_THRESHOLD]
             
             i = 0
             for i, queued_msg in enumerate(self.isis_queue):
@@ -161,6 +173,10 @@ class Node:
                     self.isis_queue[i] = (seq_time, start_time, content, msg_id, True)
 
                 if not deliverable:
+                    #if curr_time - start_time < self.MSG_THRESHOLD:
+                    #    break
+                    #else:
+                    #    continue
                     break
 
                 self.msg_time_queue.put((id, f'{time.time() - start_time}'))
@@ -190,16 +206,19 @@ class Node:
                 
         elif 'propose' in msg:
             self.proposed_lock.acquire()
-            self.proposed_times[addr] = int(msg.split()[1])
-            self.num_response += 1
+
+            if not self.responders[addr]:
+                self.proposed_times[addr] = int(msg.split()[1])
+                self.num_response += 1
+                self.responders[addr] = True
             self.proposed_lock.release()
     
     def multicast(self, msg):
-        # Naive implementation for now
         self.r_multicast(msg)
 
     def r_multicast(self, msg):
-        msg = f'{uuid.uuid4()} {msg}'
+        id = self.generate_unique_id()
+        msg = f'{id} {msg}'
         self.r_deliver((socket.gethostname(), ''), msg)
         self.b_multicast(msg)
 
@@ -208,7 +227,8 @@ class Node:
             self.unicast(out, msg) #out.sendall(str.encode(msg))
 
     def r_unicast(self, sock, msg):
-        msg = f'{uuid.uuid4()} {msg}'
+        id = self.generate_unique_id()
+        msg = f'{id} {msg}'
         self.unicast(sock, msg)
             
     def unicast(self, sock, msg):
@@ -219,7 +239,8 @@ class Node:
         self.msg_queue.put(msg)
 
     def b_deliver(self, addr, msg):
-        self.r_deliver(addr, msg)
+        #self.r_deliver(addr, msg)
+        self.deliver_TO(addr[0], content)
 
     def r_deliver(self, addr, msg):
         # Check to see if message has been recieved
@@ -227,7 +248,6 @@ class Node:
         new_message = False
         
         self.msg_lock.acquire()
-
         if not self.received_messages[msg_id]: 
             new_message = True
             self.received_messages[msg_id] = True
@@ -237,10 +257,12 @@ class Node:
             return
         
         # Handle the message
-        if 'ISIS-TO' in content:
-            self.deliver_TO(addr[0], content)
-        else:
-            self.deliver(content)
+        #if 'ISIS-TO' in content:
+        self.b_multicast(msg)
+
+        self.deliver_TO(addr[0], content)
+        #else:
+        #    self.deliver(content)
 
     def __handle_peer(self, conn, addr):
         # Naive implementation for now
@@ -322,7 +344,7 @@ class Node:
             pass
 
         # Wait for a few seconds
-        time.sleep(2)
+        time.sleep(1)
 
     ########################################
     ### Metric collection
