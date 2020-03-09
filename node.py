@@ -131,6 +131,7 @@ class Node:
     
     def multicast_TO(self, msg):
         # multicast to everyone
+        print(f"Delivering {msg}")
         self.proposed_lock.acquire()
         self.num_response = 0
         self.responders.clear()
@@ -153,6 +154,8 @@ class Node:
         
         # tell everyone else
         self.multicast(f'ISIS-TO-FINAL {final_time} {id}')
+        
+        print(f"Delivered {msg}")
 
         
     def deliver_TO(self, addr, msg):
@@ -161,6 +164,8 @@ class Node:
 
             _, final_time, id = msg.split()
 
+            print(f'Recieved {final_time} for {id}')
+
             self.TO_lock.acquire()
             for i, queued_msg in enumerate(self.isis_queue):
                 seq_time, start_time, content, msg_id, deliverable = queued_msg
@@ -168,6 +173,7 @@ class Node:
                 if id == msg_id:
                     deliverable = True
                     self.isis_queue[i] = (final_time, start_time, content, msg_id, True)
+                    break
             
             self.isis_queue.sort(key=lambda x: x[0])
 
