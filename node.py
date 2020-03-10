@@ -128,7 +128,7 @@ class Node:
         # multicast to everyone
         self.proposed_lock.acquire()
         self.num_response = 0
-        self.responders.clear()
+        #self.responders.clear()
         self.proposed_lock.release()
 
         id = self.generate_unique_id()#uuid.uuid4()
@@ -138,14 +138,16 @@ class Node:
         # wait to hear back from everyone
         start_time = time.time()
         while self.num_response < len(self.in_conns):
-            #if time.time() - start_time > self.MSG_THRESHOLD:
-            #    return
+            if time.time() - start_time > self.MSG_THRESHOLD:
+                return
             pass
         
         # decide on final time
         self.proposed_lock.acquire()
-        final_time = "0"
+        final_time = None
         for k, v in self.proposed_times.items():
+            if final_time is None:
+                final_time = v
             final_time = max(final_time, v)
         self.proposed_lock.release()
         
@@ -158,10 +160,15 @@ class Node:
         if 'isis-to-final' in msg:
 
             _, final_time, id = msg.split()
+            self.seq_lock.acquire()
+            self.sequence_num = max(self.sequence_num, int(final_time.split('-')[0]))
+            self.seq_lock.release()
 
             self.TO_lock.acquire()
             for i, queued_msg in enumerate(self.isis_queue):
                 seq_time, start_time, content, msg_id, deliverable = queued_msg
+
+                
 
                 if id == msg_id:
                     deliverable = True
