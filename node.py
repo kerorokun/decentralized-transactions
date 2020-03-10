@@ -138,8 +138,8 @@ class Node:
         # wait to hear back from everyone
         start_time = time.time()
         while self.num_response < len(self.in_conns):
-            if time.time() - start_time > self.MSG_THRESHOLD:
-                return
+            #if time.time() - start_time > self.MSG_THRESHOLD:
+            #    return
             pass
         
         # decide on final time
@@ -209,10 +209,10 @@ class Node:
         elif 'propose' in msg:
             self.proposed_lock.acquire()
 
-            if not self.responders[addr]:
-                self.proposed_times[addr] = msg.split()[1]
-                self.num_response += 1
-                self.responders[addr] = True
+            #if not self.responders[addr]:
+            self.proposed_times[addr] = msg.split()[1]
+            self.num_response += 1
+            #self.responders[addr] = True
             self.proposed_lock.release()
     
     def multicast(self, msg):
