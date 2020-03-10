@@ -142,7 +142,7 @@ class Node:
         
         # wait to hear back from everyone
         start_time = time.time()
-        while self.num_response < len(self.in_conns) and should_listen:
+        while self.num_response < len(self.in_conns):
             if time.time() - start_time > self.MSG_THRESHOLD:
                 return
             pass
