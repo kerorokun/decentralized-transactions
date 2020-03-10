@@ -162,6 +162,7 @@ class Node:
             _, final_time, id = msg.split()
             self.seq_lock.acquire()
             self.sequence_num = max(self.sequence_num, int(final_time.split('-')[0]))
+            self.sequence_num += 1
             self.seq_lock.release()
 
             self.TO_lock.acquire()
