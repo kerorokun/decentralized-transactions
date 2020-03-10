@@ -64,12 +64,7 @@ class Node:
         
         # Start listening on stdin
         try:
-            while True:
-                flush_time = time.time() + 2.0
-                for _ in sys.stdin:
-                    if time.time() > flush_time:
-                        break
-                    
+            while True:                    
                 for line in sys.stdin:
                     self.multicast_TO(line)
         except KeyboardInterrupt:
