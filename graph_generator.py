@@ -83,6 +83,7 @@ def generate_message_times():
 
     plt.plot(mins, label='Min time')
     plt.plot(maxes, label='Max time')
+    plt.legend(loc="upper left")
     plt.xlabel('Msg')
     plt.ylabel('Time (s)')
     plt.title('Message Processing Time')

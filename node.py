@@ -141,7 +141,10 @@ class Node:
         self.multicast(f'ISIS-TO-INIT {id} {time.time()} {msg}')
         
         # wait to hear back from everyone
-        while self.num_response < len(self.in_conns):
+        start_time = time.time()
+        while self.num_response < len(self.in_conns) and should_listen:
+            if time.time() - start_time > self.MSG_THRESHOLD:
+                return
             pass
         
         # decide on final time
