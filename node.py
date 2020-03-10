@@ -152,6 +152,7 @@ class Node:
         self.proposed_lock.release()
         
         # tell everyone else
+        print(f'Final time for {msg} is {final_time}')
         self.multicast(f'ISIS-TO-FINAL {final_time} {id}')
         
         
